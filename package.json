@@ -1,0 +1,33 @@
+{
+  "name": "foxfire-server",
+  "version": "1.0.0",
+  "description": "Server for foxfire web extension",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "prestart": "npm run build",
+    "start": "node .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anthonydibi/foxfire-server.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/anthonydibi/foxfire-server/issues"
+  },
+  "homepage": "https://github.com/anthonydibi/foxfire-server#readme",
+  "dependencies": {
+    "express": "^4.18.2",
+    "http": "^0.0.1-security",
+    "ioredis": "^5.3.1",
+    "socket.io": "^4.6.1",
+    "unique-names-generator": "^4.7.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "typescript": "^4.9.5"
+  }
+}
