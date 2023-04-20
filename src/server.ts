@@ -1,8 +1,8 @@
 import express from 'express';
 import Redis from 'ioredis';
 import { Server, Socket } from "socket.io";
-import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import { getRandomName } from './name-generator';
+import RedisService from './redis_service';
 const http = require('http');
 const app = express();
 const server = http.createServer(app);
@@ -39,37 +39,41 @@ else{
     });
 }
 
-let userSockets : Map<string, Socket> = new Map(); //keep track of socket objects, so that we can make them join rooms
+let redis_service = new RedisService(redis_client);
+
+let userSockets : InvertedWeakMap<string, Socket> = new InvertedWeakMap(); //keep track of socket objects, so that we can make them join rooms
 
 io.on('connection', async (socket): Promise<void> => {
-  userSockets.set(`user:${socket.id}`, socket);
+  let userId = socket.id;
+  let namespacedUser = `user:${userId}`;
+  userSockets.set(namespacedUser, socket);
   console.log("user connected");
-  await redis_client.hset(`user:${socket.id}`, "name", getRandomName(socket.id));
+  await redis_service.addUser(userId);
   socket.on('disconnect', async () => {
     console.log('user disconnected');
-    await redis_client.srem("users", socket.id);
+    await redis_service.removeUser(userId);
   });
-  socket.on('tabUpdated', async (url : string, tabId : number, lastUrl? : string) => {
+  socket.on('tabUpdated', async (url : string, tabId : string, lastUrl? : string) => {
     if(lastUrl){
-      let lastUrl = await redis_client.get(`user:${socket.id}:lastUrl`);
-      await redis_client.srem(`url:${lastUrl}`, `user:${socket.id}`);
+      let lastUrl = await redis_service.getUserLastUrl(userId);
+      await redis_service.untrackUserFromWebpage(userId, lastUrl);
     }
-    await redis_client.sadd(`url:${url}`, `user:${socket.id}`);
-    const numUsers : number = await redis_client.scard(`url:${url}`);
+    await redis_service.trackUserOnWebpage(userId, url);
+    await redis_service.addWebpageToUserWebpages(userId, url);
+    const numUsers : number = await redis_service.numUsersOnWebpage(url);
     if(numUsers > 1){
-      const usersOnWebpage : string[] = await redis_client.smembers(`url:${url}`);
+      const usersOnWebpage : string[] = await redis_service.listUsersOnWebpage(url);
       usersOnWebpage.forEach((user : string) => {
         userSockets.get(user).join(`room:${url}`); //join all users on the webpage to a room
-        redis_client.sadd(`${user}:rooms`, `room:${url}`);
-        redis_client.hset(`${user}:rooms`, `room:${url}`, tabId);
-        redis_client.zrevrange
+        redis_service.addRoomToUser(userId, url);
+        redis_service.setUserRoomTab(userId, url, tabId);
       });
     }
   });
   socket.on('disconnecting', async () => {
-    socket.rooms.forEach((room) => {
-
-    })
+    redis_service.deleteUserRooms(userId);
+    redis_service.deleteUserRoomTabs(userId);
+    redis_service.clearUserWebpages(userId);
   });
 });
 
